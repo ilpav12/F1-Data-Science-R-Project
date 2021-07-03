@@ -1,0 +1,315 @@
+---
+title: "An analysis of F1"
+subtitle: "The importance of wins and poles in F1 history"
+author: "Luca Pavan"
+date: "06/07/2021"
+output:
+  ioslides_presentation:
+    incremental: true
+editor_options: 
+  chunk_output_type: inline
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message=FALSE, warning=FALSE, eval=TRUE, echo=FALSE)
+```
+
+
+```{r message=FALSE, warning=FALSE}
+library(readr)
+library(dplyr)
+library(tidyr)
+library(stringr)
+library(scales)
+library(ggplot2)
+library(ggthemes)
+library(waffle)
+```
+
+## Part 1 
+
+- In the history of Formula 1 has constancy been more important than winning?
+
+- To answer this first question we will count how many times a driver has won a F1 title without getting the most number of wins.
+
+- But first how many times do you think this has happened in 71 seasons of F1?
+
+## First plot
+
+```{r eval=TRUE, echo=FALSE}
+raceList = read_csv("csv/races.csv") %>%
+  select(raceId, year, name)
+
+driverNames = read_csv("csv/drivers.csv") %>%
+  select(driverId, forename, surname) %>%
+  unite(driverName, forename, c(forename, surname)) %>%
+  mutate(driverName = str_replace(driverName, "_", " "))
+
+constructorNames = read_csv("csv/constructors.csv") %>%
+  select(constructorId, name) %>%
+  rename(constructorName = name)
+
+driverStandings = read_csv("csv/driver_standings.csv") %>%
+  mutate(raceYear = raceList$year[match(as.matrix(raceId), raceList$raceId)],
+         raceName = raceList$name[match(as.matrix(raceId), raceList$raceId)],
+         driverName = driverNames$driverName[match(as.matrix(driverId), driverNames$driverId)])
+
+mostWins = driverStandings %>%
+  group_by(raceYear) %>%
+  filter(wins == max(wins)) %>%
+  filter(points == max(points)) %>%
+  select(raceYear, points, wins) %>%
+  distinct()
+
+mostPoints = driverStandings %>%
+  group_by(raceYear) %>%
+  filter(points == max(points)) %>%
+  filter(wins == max(wins)) %>%
+  select(raceYear, points, wins) %>%
+  distinct()
+
+winsPointsComparison = left_join(mostWins, mostPoints, by = "raceYear") %>%
+  mutate(type = ifelse(points.x == points.y, "mostWins", "mostPoints")) %>%
+  filter(raceYear != 2021) %>%
+  ungroup() %>%
+  count(type) %>%
+  rename(occurrence = n)
+
+vals <- winsPointsComparison$occurrence
+val_names <- sprintf("%s - %s (%s)", winsPointsComparison$type, winsPointsComparison$occurrence, scales::percent(round(winsPointsComparison$occurrence/sum(winsPointsComparison$occurrence), 3)))
+names(vals) <- val_names
+
+waffle::waffle(vals, size = 1, rows = 5, title = "Comparison of seasons won with vs without most wins", xlab = "1 square = 1 season, rows of 5", colors = tableau_color_pal(palette = "Tableau 20", type = "regular")(length(vals)))
+```
+
+## Second plot
+
+```{r eval=TRUE, echo=FALSE}
+winsPointsComparison = setdiff(mostWins, mostPoints) %>%
+  union(setdiff(mostPoints, mostWins)) %>%
+  filter(raceYear != 2021) %>%
+  arrange(raceYear) %>%
+  mutate(category = ifelse(row_number() %% 2 == 0, "mostPoints", "mostWins")) %>%
+  pivot_longer(c(points, wins), names_to = "type", values_to = "value") %>%
+  mutate(label = paste(raceYear, type, sep = " / ")) %>%
+  ungroup() %>%
+  add_row(raceYear = 0, category = "mostPoints", type = "wins", value = 0, label = "1964") %>%
+  add_row(raceYear = 0, category = "mostPoints", type = "wins", value = 0, label = "1967") %>%
+  add_row(raceYear = 0, category = "mostPoints", type = "wins", value = 0, label = "1977") %>%
+  add_row(raceYear = 0, category = "mostPoints", type = "wins", value = 0, label = "1979") %>%
+  add_row(raceYear = 0, category = "mostPoints", type = "wins", value = 0, label = "1982") %>%
+  add_row(raceYear = 0, category = "mostPoints", type = "wins", value = 0, label = "1983") %>%
+  add_row(raceYear = 0, category = "mostPoints", type = "wins", value = 0, label = "1984") %>%
+  add_row(raceYear = 0, category = "mostPoints", type = "wins", value = 0, label = "1986") %>%
+  add_row(raceYear = 0, category = "mostPoints", type = "wins", value = 0, label = "1987") %>%
+  add_row(raceYear = 0, category = "mostPoints", type = "wins", value = 0, label = "1989") %>%
+  add_row(raceYear = 0, category = "mostPoints", type = "wins", value = 0, label = "2008") %>%
+  add_row(raceYear = 0, category = "mostPoints", type = "wins", value = 0, label = "2016")
+  
+brks <- c(0, 0.25, 0.5, 0.75, 1)
+
+ggplot(winsPointsComparison, aes(fill=category, y = value, x = label)) + 
+  labs(title = "Analysis of the 13 seasons won without the most number of wins",
+       fill = "Category",
+       y = "Percentage value") +
+  geom_bar(stat='identity', width=.8, position="fill") + labs(x='Year / Type') +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1), legend.position = "bottom") +
+  scale_y_continuous(breaks = brks, labels = scales::percent(brks)) +
+  geom_text(aes(label = ifelse(value == 0, "", value)),
+            position = position_fill(vjust = 0.5),
+            angle = 90)
+```
+
+## Fun fact 1
+
+- In 1984 the season became a memorable duel between McLaren drivers Alain Prost and Niki Lauda.
+
+- Prost won seven races to Lauda's five, including the last two races of the season, but Lauda eventually prevailed by half a point; the smallest margin in Formula One history.
+
+- It was Lauda's third title, and his first since 1977.
+
+- McLaren comfortably won the Manufacturers' Championship, their first since 1974.
+
+## Conclusion 1
+
+- Winning in F1 is generally important because 82% of the time getting the most number of wins has led to the won of the title.
+
+- In fact on average winning a title without having the most wins happens only 1 time every 5½ seasons.
+
+## Part 2
+
+- If winning is so important in F1, how important is starting in front of the grid to be on the top step of the podium?
+
+- To answer this second question we will count the occurrences of wins by initial grid position.
+
+- But first what is the percentage of wins you expect starting from pole position?
+
+## First plot
+
+```{r eval=TRUE, echo=FALSE}
+results = read_csv("csv/results.csv") %>%
+  mutate(number = ifelse(is.na(number), 0, number)) %>%
+  mutate(raceYear = raceList$year[match(as.matrix(raceId), raceList$raceId)],
+         raceName = raceList$name[match(as.matrix(raceId), raceList$raceId)],
+         driverName = driverNames$driverName[match(as.matrix(driverId), driverNames$driverId)],
+         constructorName = constructorNames$constructorName[match(as.matrix(constructorId), constructorNames$constructorId)]) %>%
+  arrange(raceYear)
+
+gridToWin = results %>%
+  filter(1 == position) %>%
+  count(grid) %>%
+  rename(occurrence = n)
+vals <- gridToWin$occurrence
+val_names <- sprintf("%s - %s (%s)", gridToWin$grid, gridToWin$occurrence, scales::percent(round(gridToWin$occurrence/sum(gridToWin$occurrence), 3)))
+names(vals) <- val_names
+
+waffle::waffle(vals, size = 1, rows = 25, title = "Occurence of winning by starting position", xlab = "1 square = 1 race, rows of 25", colors = tableau_color_pal(palette = "Tableau 20", type = "regular")(length(vals)))
+```
+
+## Second plot
+
+```{r eval=TRUE, echo=FALSE}
+gridToWinByYear = results %>%
+  filter(1 == position) %>%
+  group_by(raceYear) %>%
+  count(grid) %>%
+  rename(occurrence = n) %>%
+  mutate(grid = as.character(grid)) %>%
+  mutate(grid = ifelse(nchar(grid) == 1, paste0(0, grid), grid))
+
+gridToWin2 = gridToWin %>%
+  mutate(grid = as.character(grid)) %>%
+  mutate(grid = ifelse(nchar(grid) == 1, paste0(0, grid), grid)) %>%
+  mutate(raceYear = 2023, .before = grid)
+  
+gridToWin3 = bind_rows(gridToWinByYear, gridToWin2)
+
+ggplot(gridToWin3, aes(fill = grid, y = occurrence, x = raceYear)) + 
+  labs(title = "Occurence of winning by starting position by year (last bar is the average)",
+       fill = "Grid",
+       y = "Percentage occurrence",
+       x = "Year") +
+  geom_bar(stat='identity', width=1, position = "fill") + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1), legend.position = "bottom") +
+  scale_y_continuous(breaks = brks, labels = scales::percent(brks)) +
+  scale_fill_manual(values=c("#4e79a7", "#a0cbe8", "#499894", "#86bcb6", "#59a14f", "#8cd17d", "#b6992d", "#f1ce63", "#f28e2b", "#ffbe7d", "#e15759", "#ff9d9a", "#d37295", "#bab0ac", "#b07aa1", "#fabfd2", "#79706e", "#d4a6c8", "#9d7660", "#d7b5a6"))
+```
+
+```{r eval=TRUE, echo=FALSE}
+ff2 = results %>%
+  filter(grid == 22) %>%
+  filter(position == 1) %>%
+  select(raceYear, raceName, driverName, constructorName)
+```
+
+## Fun fact 2
+
+- The record in the history of F1 of the most backward start for a grand prix winner was performed by `r ff2$driverName` starting 22nd on the `r ff2$raceName` of `r ff2$raceYear` with `r ff2$constructorName`.
+
+- That was his fifth, and last, success in the world championship.
+
+- His teammate, Niki Lauda, who finished second, started instead from the 23rd place.
+
+## Conclusion 2
+
+- In the history of F1 starting from the pole has usually been very important as on average it has led to more than 40% of victories.
+
+- Second place, instead, led to almost ¼ of victories and third to only around ⅛ of wins.
+
+- Below the third place the percentages lower below 10%
+
+## Part 3
+
+- Now that we know how the starting position is related to the probability of getting a win, how different are percentages in Monaco, which is a classic street circuit that usually do not offer many overtakes?
+
+- To answer this final question we will use the same process as before but focusing on the difference between the average of all circuits and Monaco GP.
+
+- But first what is the percentage of wins you expect this time starting from pole position remembering that on average is 41.9%?
+
+## First plot
+
+```{r eval=TRUE, echo=FALSE}
+gridToWinInMonaco = results %>%
+  filter(1 == position, "Monaco Grand Prix" == raceName) %>%
+  select(grid, position) %>%
+  count(grid) %>%
+  rename(occurrence = n)
+
+vals <- gridToWinInMonaco$occurrence
+val_names <- sprintf("%s (%s)", gridToWinInMonaco$grid, scales::percent(round(gridToWinInMonaco$occurrence/sum(gridToWinInMonaco$occurrence), 3)))
+names(vals) <- val_names
+
+waffle(vals, colors = tableau_color_pal()(length(vals)), rows = 5, title = "Occurence of winning by starting position in Monaco", xlab = "1 square = 1 race, rows of 5")
+```
+
+## Second plot
+
+```{r eval=TRUE, echo=FALSE}
+gridToWin = gridToWin %>%
+  mutate(circuit = "All") %>%
+  mutate(percentageByCircuit = occurrence/sum(occurrence)) %>%
+  mutate(percentageText = scales::percent(round(percentageByCircuit,3)))
+
+gridToWinInMonaco = gridToWinInMonaco %>%
+  mutate(circuit = "Monaco") %>%
+  mutate(percentageByCircuit = occurrence/sum(occurrence)) %>%
+  mutate(percentageText = scales::percent(round(percentageByCircuit,3)))
+
+gridToWinComparison = left_join(gridToWin, gridToWinInMonaco, by = "grid") %>%
+  mutate(percentageByGridSum = ifelse(is.na(percentageByCircuit.y),
+                                         percentageByCircuit.x,
+                                         percentageByCircuit.x + percentageByCircuit.y)) %>%
+  mutate(percentageByGrid.x = percentageByCircuit.x/percentageByGridSum) %>%
+  mutate(percentageByGrid.y = ifelse(is.na(percentageByCircuit.y),
+                                         NA,
+                                         percentageByCircuit.y/percentageByGridSum))
+
+gridToWin = gridToWinComparison %>%
+  select(grid, circuit.x, percentageText.x, percentageByGrid.x) %>%
+  rename(circuit = circuit.x, percentageText = percentageText.x, percentageByGrid = percentageByGrid.x)
+
+gridToWinInMonaco = gridToWinComparison %>%
+  filter(!is.na(circuit.y)) %>%
+  select(grid, circuit.y, percentageText.y, percentageByGrid.y) %>%
+  rename(circuit = circuit.y, percentageText = percentageText.y, percentageByGrid = percentageByGrid.y)
+  
+gridToWinComparison = union(gridToWin, gridToWinInMonaco, by = "grid")
+
+ggplot(gridToWinComparison, aes(x=" ", y=percentageByGrid, group=circuit, colour=circuit, fill=circuit)) +
+         geom_bar(width = 1, stat = "identity") +
+         labs(title = "Comparison of winning percentage by starting grid \n between all circuits and Monaco only") +
+         geom_label(aes(label = percentageText), 
+                          position = position_fill(vjust = 0.8),
+                          color = "black") +
+         coord_polar("y", start=0) + 
+         coord_polar(theta = "y") +
+         facet_wrap(~ grid, ncol = 5) +
+         theme_void()
+```
+
+
+```{r eval=TRUE, echo=FALSE}
+ff3 = results %>%
+  filter(raceName == "Monaco Grand Prix") %>%
+  filter(grid == 14) %>%
+  filter(position == 1) %>%
+  select(raceYear, raceName, driverName, constructorName)
+```
+
+## Fun fact 3
+
+- The driver who has won starting 14th on the `r ff3$raceName` was `r ff3$driverName` in `r ff3$raceYear` with `r ff3$constructorName`.
+
+- The race took place in extremely wet asphalt conditions and that was his only victory in Formula 1.
+
+- Only four cars reached the finish line, of which only three at full rpm.
+
+- According to the regulations, the race was stopped at the limit of two hours after the start, when only 75 laps of the 78 planned had been completed.
+
+## Conclusion 3
+
+- The difference between all circuits and only Monaco is not very significant.
+
+- The percentage difference starting on pole position is only 3% and the other position are very similar too.
+
+- In conclusion we can say that in F1 great comebacks that led to a win are not very common neither on proper circuits nor on street circuit, with only a little difference between those.
